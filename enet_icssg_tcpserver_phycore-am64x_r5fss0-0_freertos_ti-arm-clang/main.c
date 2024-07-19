@@ -36,6 +36,7 @@
 #include "ti_board_config.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include <drivers/pinmux.h>
 
 #define MAIN_TASK_PRI  (configMAX_PRIORITIES-1)
 
@@ -44,6 +45,25 @@ StackType_t gMainTaskStack[MAIN_TASK_SIZE] __attribute__((aligned(32)));
 
 StaticTask_t gMainTaskObj;
 TaskHandle_t gMainTask;
+
+#define CTRLMMR_LOCK2_KICK0 (uint32_t*)0x43009008
+#define CTRLMMR_LOCK2_KICK1 (uint32_t*)0x4300900c
+#define CTRLMMR_CLKOUT_CTRL (uint32_t*)0x43008010
+
+static Pinmux_PerCfg_t My_gPinMuxMainDomainCfg[] = {
+    {
+        PIN_EXT_REFCLK1, ( PIN_MODE(5) | PIN_PULL_DISABLE )
+    },
+    {PINMUX_END, PINMUX_END}
+};
+
+void EthRefCLK_init(void)
+{
+    Pinmux_config(My_gPinMuxMainDomainCfg, PINMUX_DOMAIN_ID_MAIN);
+    *CTRLMMR_LOCK2_KICK0 = 0x68ef3490;  /* kick0 */
+    *CTRLMMR_LOCK2_KICK1 = 0xd172bc5a;  /* kick1 */
+    *CTRLMMR_CLKOUT_CTRL = 0x11;    /* CLK_EN = 1, CLK_SEL = 1 */
+}
 
 void appMain(void *args);
 
@@ -59,6 +79,9 @@ int main(void)
 {
     /* init SOC specific modules */
     System_init();
+
+    EthRefCLK_init();
+
     Board_init();
 
     /* This task is created at highest priority, it should create more tasks and then delete itself */
